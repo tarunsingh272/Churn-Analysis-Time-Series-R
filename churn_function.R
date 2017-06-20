@@ -7,14 +7,14 @@ library(dplyr)
 
 # call churn data pre-processing function
 
-source("//Users//paullovachykostoff//Desktop//Churn//R Scripts//pre_process.R")
+source("file_path//pre_process.R")
 
 #--------------------------------------------------------------#
 
 # load data 
 
-churnTrain <- read.csv("//Users//paullovachykostoff//Desktop//Churn//R Data//churnTrain.csv", header = TRUE, strip.white = TRUE)
-churnTest <- read.csv("//Users//paullovachykostoff//Desktop//Churn//R Data//churnTest.csv", header = TRUE, strip.white = TRUE)
+churnTrain <- read.csv("file_path//churnTrain.csv", header = TRUE, strip.white = TRUE)
+churnTest <- read.csv("file_path//churnTest.csv", header = TRUE, strip.white = TRUE)
 
 #-----------------------------------------------------------#
 
