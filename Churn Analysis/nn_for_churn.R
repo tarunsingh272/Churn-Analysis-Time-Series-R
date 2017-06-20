@@ -11,8 +11,8 @@ library(e1071)
 # load data
 
 # read in csv files
-churnTrain <- read.csv("//Users//paullovachykostoff//Desktop//Churn//R Data//churnTrain.csv", header = TRUE, strip.white = TRUE)
-churnTest <- read.csv("//Users//paullovachykostoff//Desktop//Churn//R Data//churnTest.csv", header = TRUE, strip.white = TRUE)
+churnTrain <- read.csv("file_path//churnTrain.csv", header = TRUE, strip.white = TRUE)
+churnTest <- read.csv("file_path//churnTest.csv", header = TRUE, strip.white = TRUE)
 
 #---------------------------------------------------------------#
 
