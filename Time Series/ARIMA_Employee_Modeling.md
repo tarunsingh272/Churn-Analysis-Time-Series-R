@@ -15,7 +15,7 @@ Plotting Employee Requirement
 
 The graph below visualizes employee requirement over 2016, and includes a trend line.
 
-![Viz 1](https://raw.github.com/cincy-data/Predictive-Modeling-R/tree/master/Time%20Series/Visualizations/viz-1-1.png "Viz 1")
+![Viz 1](https://github.com/cincy-data/Predictive-Modeling-R/tree/master/Time%20Series/Visualizations/viz-1-1.png "Viz 1")
 
 Employee requirement appeared to follow an increasing pattern in 2016.
 
