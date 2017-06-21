@@ -15,18 +15,16 @@ Plotting Employee Requirement
 
 The graph below visualizes employee requirement over 2016, and includes a trend line.
 
-![Viz 1](https://github.com/cincy-data/Predictive-Modeling-R/tree/master/Time%20Series/Visualizations/viz-1-1.png "Viz 1")
+![](Visualizations/viz-1-1.png?raw=true)
 
 Employee requirement appeared to follow an increasing pattern in 2016.
-
-![](Visualizations/viz-1-1.png?raw=true)
 
 Anomaly Detection
 -----------------
 
 As 2016 came to a close, employee requirement increased significantly with single day entries for employee requirement far exceeding 1500 on several occasions. We next apply anomaly detection for evidence with respect to whether the peaks observed near the end of 2016 are anomalous, or rather, part of the general trend of increasing employee requirement.
 
-![Viz 2](https://github.com/cincy-data/Predictive-Modeling-R/tree/master/Time%20Series/Visualizations/viz-2-1.png "Viz 2")
+![](Visualizations/viz-2-1.png?raw=true)
 
 Using a generous threshold of .1, only 2 points, or .55% of all observations, were considered anomalous. This provides some evidence that the increasing trend we observe in employee requirement, even the majority of the peaks, are indicative of a general increasing trend.
 
@@ -35,11 +33,11 @@ Auto Regressive Integrated Moving Average (ARIMA) for Time Series
 
 Instead of conducting time series analysis on the daily employee requirement values, which display considerable noise day to day, using the weekly or monthly moving averages provide a relatively smoothed set of observations in comparison. This is often preferable for generalizing trends. The graphs below visualize weekly and monthly ARIMA.
 
-![Viz 3](https://github.com/cincy-data/Predictive-Modeling-R/tree/master/Time%20Series/Visualizations/viz-3-1.png "Viz 3")
+![](Visualizations/viz-3-1.png?raw=true)
 
 We next display weekly and monthly ARIMA seperately from the observed employee requirement observations.
 
-![Viz 4](https://github.com/cincy-data/Predictive-Modeling-R/tree/master/Time%20Series/Visualizations/viz-4-1.png "Viz 4")
+![](Visualizations/viz-4-1.png?raw=true)
 
 The analysis in this report focuses primarily on monthly ARIMA, although weekly ARIMA and the observed values are also analyzed occasionally. As mentioned, monthly ARIMA provides smoothed estimates which allow for a clearer picture of the general increasing trend in employee requirement.
 
@@ -48,7 +46,7 @@ Trend Decomposition
 
 We next decompose monthly ARIMA into its underlying trends. These include the observed monthly ARIMA values, a generalized trend, a seasonal trend, and the remainder (noise) which is unexplanied by either the general or seasonal trends.
 
-![Viz 5](https://github.com/cincy-data/Predictive-Modeling-R/tree/master/Time%20Series/Visualizations/viz-5-1.png "Viz 5")
+![](Visualizations/viz-5-1.png?raw=true)
 
 The generalized trend serves to further smooth monthly ARIMA. Additionally, some amount of variation in employee requirement remains unexplained by either the general increasing trend or seasonal variation.
 
@@ -78,7 +76,7 @@ There is evidence at the 1% level of significance that mean employee requirement
 
 We cannot reject non-stationarity. This is to say, we cannot reject that the series does not retain mean, variance, and auto-correlation over time. This is intuitive given the generally increasing pattern observed in the data. We did not expect stationarity in this series.
 
-![Viz 6](https://github.com/cincy-data/Predictive-Modeling-R/tree/master/Time%20Series/Visualizations/viz-6-1.png "Viz 6")
+![](Visualizations/viz-6-1.png?raw=true)
 
 The data retain relatively high auto-correlation over time, which means that observations, even at a significant lag, are still correlated and potentially useful in determining the position for future values of employee requirement.
 
@@ -89,7 +87,7 @@ We next develop forecasting models to predict future values of employee requirem
 
 The first model visualized below is the max liklihood model.
 
-![Viz 7](https://github.com/cincy-data/Predictive-Modeling-R/tree/master/Time%20Series/Visualizations/viz-7-1.png "Viz 7")
+![](Visualizations/viz-7-1.png?raw=true)
 
     ## 
     ## Call:
@@ -106,7 +104,7 @@ The max liklihood model decreasingly increases over time, with functional form a
 
 The drift model is presented below.
 
-![Viz 8](https://github.com/cincy-data/Predictive-Modeling-R/tree/master/Time%20Series/Visualizations/viz-8-1.png "Viz 8")
+![](Visualizations/viz-8-1.png?raw=true)
 
     ## Series: deseasonal_cnt 
     ## ARIMA(0,1,1) with drift         
@@ -121,7 +119,7 @@ The drift model is presented below.
 
 The drift model follows a linear pattern of increase. Below, we visualize the drift model predictions vs. actuals using the final 25 days of the weekly ARIMA observations.
 
-![Viz 9](https://github.com/cincy-data/Predictive-Modeling-R/tree/master/Time%20Series/Visualizations/viz-9-1.png "Viz 9")
+![](Visualizations/viz-9-1.png?raw=true)
 
 The drift model appears to appropriately model at least the last 25 weekly ARIMA observations.
 
@@ -132,11 +130,11 @@ We next perform regression analysis, modeling employee requirement as a function
 
 The first model presented below uses the daily logged employee requirement values to fit the regression.
 
-![Viz 10](https://github.com/cincy-data/Predictive-Modeling-R/tree/master/Time%20Series/Visualizations/viz-10-1.png "Viz 10")
+![](Visualizations/viz-10-1.png?raw=true)
 
 The second regression below models employee requirement using monthly ARIMA.
 
-![Viz 11](https://github.com/cincy-data/Predictive-Modeling-R/tree/master/Time%20Series/Visualizations/viz-11-1.png "Viz 11")
+![](Visualizations/viz-11-1.png?raw=true)
 
 We observe that the two linear regression models produce similar equations with respect to calculating employee requirement.
 
@@ -156,7 +154,7 @@ So, the two regression equations will return identical predictions with respect 
 
 We next include a quadratic term to more closely model the monthly ARIMA. The quadratic model preditions vs. monthly ARIMA is visualized below.
 
-![Viz 12](https://github.com/cincy-data/Predictive-Modeling-R/tree/master/Time%20Series/Visualizations/viz-12-1.png "Viz 12")
+![](Visualizations/viz-12-1.png?raw=true)
 
 The quadratic model returns fitted values which are significantly closer to the monthly ARIMA values than do either of the linear models. However, the quadratic model predictions will begin to increase rapidly due to the quadratic term, and will eventually return estimates which are unrealistically high with respect to employee requirement.
 
@@ -178,7 +176,7 @@ Regularized Gradient Boosting (XGBoost) for Predicting Employee Requirement
 
 We next select a non-parametric algorithm to model and predict employee requirement. We use the forecastxgb package and then build a custom regularized gradient boosted model to determine performance. The results of the forecastxgb model are visualized below.
 
-![Viz 13](https://github.com/cincy-data/Predictive-Modeling-R/tree/master/Time%20Series/Visualizations/viz-13-1.png "Viz 13")
+![](Visualizations/viz-13-1.png?raw=true)
 
 While the gradient boosted model picks up on the seasonal fluctuations presented using weekly ARIMA, if we extrapolate out far enough the predictions converge on a single value. This may not be problematic since we would plan on updating our models as new data become available. However, if preditions far into the future are required, the forecastxgb model presents challenges.
 
@@ -190,7 +188,7 @@ We next train and test a custom built gradient boosted model. As you see, the mo
     ## [4]  train-rmse:3.816701 
     ## [5]  train-rmse:2.588365
 
-![Viz 14](https://github.com/cincy-data/Predictive-Modeling-R/tree/master/Time%20Series/Visualizations/viz-14-1.png "Viz 14")
+![](Visualizations/viz-14-1.png?raw=true)
 
 Unfortunately, however, the model is unable to pick up the increasing trend in employee requirement and returns converged predictions for all future dates. Using this model for future employee requirement predictions is not appropriate.
 
@@ -199,7 +197,7 @@ Step Function
 
 We next build and visualize a custom step function over three domains of time. The model is visualized below.
 
-![Viz 15](https://github.com/cincy-data/Predictive-Modeling-R/tree/master/Time%20Series/Visualizations/viz-15-1.png "Viz 15")
+![](Visualizations/viz-15-1.png?raw=true)
 
 The step function is more flexible in its predictions than are the linear models. Also, unlike the gradient boosted model, the step function can be used effectively for predicting future employee requirement. Since the general trend in employee requirement is increasing in nature, we review the predictions of the regression over the middle domain and the final domain of time. We also consider a combination of those two models and use each of those results to create predictions for future employee requirement later on.
 
@@ -208,14 +206,14 @@ Model Comparison
 
 Below, we compare the model performance of each algorithm.
 
-![Viz 16](https://github.com/cincy-data/Predictive-Modeling-R/tree/master/Time%20Series/Visualizations/viz-16-1.png "Viz 16")
+![](Visualizations/viz-16-1.png?raw=true)
 
 Predicting Future Employee Requirement
 --------------------------------------
 
 Lastly, we use each of the models we built during the course of this report to predict future employee requirement 100 days after the last observed monthly ARIMA value.
 
-![Viz 17](https://github.com/cincy-data/Predictive-Modeling-R/tree/master/Time%20Series/Visualizations/viz-17-1.png "Viz 17")
+![](Visualizations/viz-17-1.png?raw=true)
 
 The predictions range from a low of about 1400 to a high of about 1620. When data for the 100 day period of predictions becomes available, we will calculate monthly ARIMA values and compare each model's predictions to the actual observed monthly ARIMA values. We will then select the best performing algorithms to include in custom function models which will return accurate forecasts for employee requirement, giving firms an unparalleled level of business intelligence.
 
