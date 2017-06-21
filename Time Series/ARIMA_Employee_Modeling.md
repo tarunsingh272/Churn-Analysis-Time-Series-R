@@ -19,6 +19,8 @@ The graph below visualizes employee requirement over 2016, and includes a trend 
 
 Employee requirement appeared to follow an increasing pattern in 2016.
 
+![](Visualizations/viz-1-1.png?raw=true)
+
 Anomaly Detection
 -----------------
 
