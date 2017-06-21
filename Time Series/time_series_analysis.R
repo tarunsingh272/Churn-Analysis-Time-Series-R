@@ -18,7 +18,7 @@ library(xgboost)
 #--------------------------------------------------------#
 
 # load data
-series <- read.csv("//Users//paullovachykostoff//Desktop//Dynamical Systems//series.csv", header = TRUE, strip.white = TRUE)
+series <- read.csv("file_path//series.csv", header = TRUE, strip.white = TRUE)
 
 #--------------------------------------------------------#
 
@@ -509,10 +509,10 @@ rm(list=ls()[! ls() %in% c("output","final.predictions")])
 # exporting results
 
 # LFQ Analysis
-write.csv(output, "//Users//paullovachykostoff//Desktop//Dynamical Systems//2016 Fit.csv", row.names = FALSE)
+write.csv(output, "file_path//2016 Fit.csv", row.names = FALSE)
 
 # Q3 Predictions
-write.csv(final.predictions, "//Users//paullovachykostoff//Desktop//Dynamical Systems//Predictions Fit.csv", row.names = FALSE)
+write.csv(final.predictions, "file_path//Predictions Fit.csv", row.names = FALSE)
 
 
 # end of script
