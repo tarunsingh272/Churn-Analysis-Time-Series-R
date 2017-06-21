@@ -15,7 +15,7 @@ Plotting Employee Requirement
 
 The graph below visualizes employee requirement over 2016, and includes a trend line.
 
-![](Visualization/viz-1-1.png)
+![](/Visualization/viz-1-1.png)
 
 Employee requirement appeared to follow an increasing pattern in 2016.
 
