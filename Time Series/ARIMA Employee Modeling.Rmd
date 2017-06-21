@@ -1,0 +1,716 @@
+---
+title: "ARIMA Modeling to Predict Employee Requirement"
+author: "Cincinnati Data"
+date: "6/20/2017"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+  fig.path = "Visualizations/viz-"
+```
+
+## Time Series Analysis for Employee Requirement
+
+This report presents methods for time series analysis in R. Specifically, we look at trends in employee requirement for a firm during FY16. Employees log hours each day. By taking time logged per day, extrapolating over an entire year, and finally dividing by available working hours, we can track employee requirement per day. 
+
+This analysis will allow firms to accurately gauge the amount of work, measured in full time employees, being logged each day. This analysis also allows firms to forecast future employee requirement so that resources can be allocated accordingly. 
+
+```{r libraries, include=FALSE}
+
+# devtools::install_github("twitter/AnomalyDetection") # AnomalyDetection
+library(AnomalyDetection)
+library(ggplot2)
+library(Rcpp)
+library(timeDate)
+library(data.table)
+library(tseries)
+library(lubridate)
+library(forecast)
+# devtools::install_github("ellisp/forecastxgb-r-package/pkg") # forecastxgb
+library(forecastxgb)
+library(caret)
+library(qlcMatrix)
+library(xgboost)
+
+#--------------------------------------------------------#
+
+# load data
+series <- read.csv("//Users//paullovachykostoff//Desktop//Dynamical Systems//series.csv", header = TRUE, strip.white = TRUE)
+
+#--------------------------------------------------------#
+
+# convert date data type and rename columns
+
+# convert date field to as.Date
+series$Date <- as.Date(series$Date)
+
+# remove . from colnames
+setnames(series, old = c("Time.Entry", "Extrapolated.Time.Entry", "Employee.Requirement"), new = c("Time Entry", "Extrapolated Time Entry", "Employee Requirement"))
+
+
+```
+
+
+## Plotting Employee Requirement
+
+The graph below visualizes employee requirement over 2016, and includes a trend line. 
+
+```{r viz-1}
+
+# initial trend visualization
+
+# visualzie trend in Employee Requirement per day
+ggplot(series, aes(x=Date, y=`Employee Requirement`, color=`Employee Requirement`)) + geom_line() + geom_smooth(method = "lm")+ylab('Employee Requirement')+ggtitle("Trend in Employee Requirement")
+
+```
+
+Employee requirement appeared to follow an increasing pattern in 2016. 
+
+
+## Anomaly Detection
+
+As 2016 came to a close, employee requirement increased significantly with single day entries for employee requirement far exceeding 1500 on several occasions. We next apply anomaly detection for evidence with respect to whether the peaks observed near the end of 2016 are anomalous, or rather, part of the general trend of increasing employee requirement. 
+
+```{r viz-2}
+
+# anomaly detection
+
+# create anomaly detection dataset
+anom.series <- series
+
+# convert date for anomaly detection
+anom.series$Date <- as.POSIXct(anom.series$Date, format = "y-%m-%d")
+
+# create anomaly detection subset
+data.anomaly <- anom.series[,c("Date","Employee Requirement")]
+
+
+# Apply anomaly detection
+data_anomaly <- AnomalyDetectionTs(data.anomaly, max_anoms=0.1, direction="both", 
+                                   plot=TRUE, e_value = T)
+
+# visualize anomalies
+data_anomaly$plot
+
+```
+
+Using a generous threshold of .1, only 2 points, or .55% of all observations, were considered anomalous. This provides some evidence that the increasing trend we observe in employee requirement, even the majority of the peaks, are indicative of a general increasing trend. 
+
+
+## Auto Regressive Integrated Moving Average (ARIMA) for Time Series
+
+Instead of conducting time series analysis on the daily employee requirement values, which display considerable noise day to day, using the weekly or monthly moving averages provide a relatively smoothed set of observations in comparison. This is often preferable for generalizing trends. The graphs below visualize weekly and monthly ARIMA. 
+
+```{r viz-3, warning=FALSE, message=FALSE}
+
+# prepare data for ARIMA time series analysis
+
+# create time series objects
+count.ts <- ts(series[, c('Employee Requirement')])
+series$clean.cnt <- tsclean(count.ts)
+
+#--------------------------------------------------------#
+
+# adding ARIMA (auto-regressive integrated moving average)
+
+# calculating weekly and monthly averages
+series$`weekly requirement` <- ma(series$clean.cnt, order=7) 
+series$`monthly requirement` <- ma(series$clean.cnt, order=30)
+
+# plotting with weekly and monthly averages included
+ggplot() +
+  geom_line(data = series, aes(x = Date, y = clean.cnt, colour = "Counts")) +
+  geom_line(data = series, aes(x = Date, y = `weekly requirement`,   colour = "Weekly Moving Average"))  +
+  geom_line(data = series, aes(x = Date, y = `monthly requirement`, colour = "Monthly Moving Average"))  +
+  ylab('Employee Requirement') + ggtitle("ARIMA Overlay")
+
+```
+
+We next display weekly and monthly ARIMA seperately from the observed employee requirement observations.
+
+
+```{r viz-4, warning=FALSE, message=FALSE}
+# plotting weekly and monthly averages
+ggplot() +
+  geom_line(data = series, aes(x = Date, y = `weekly requirement`,   colour = "Weekly Moving Average"))  +
+  geom_line(data = series, aes(x = Date, y = `monthly requirement`, colour = "Monthly Moving Average"))  +
+  ylab('Employee Requirement') + ggtitle("ARIMA Only")
+
+```
+
+The analysis in this report focuses primarily on monthly ARIMA, although weekly ARIMA and the observed values are also analyzed occasionally. As mentioned, monthly ARIMA provides smoothed estimates which allow for a clearer picture of the general increasing trend in employee requirement. 
+
+
+## Trend Decomposition
+
+We next decompose monthly ARIMA into its underlying trends. These include the observed monthly ARIMA values, a generalized trend, a seasonal trend, and the remainder (noise) which is unexplanied by either the general or seasonal trends. 
+
+```{r viz-5}
+
+# monthly ARIMA trend decomposition
+
+# decomposition using monthly moving average
+weekly.ARIMA <- ts(na.omit(series$`weekly requirement`), frequency=30)
+monthly.ARIMA <- ts(na.omit(series$`monthly requirement`), frequency=30)
+decomp <- stl(monthly.ARIMA, s.window="periodic")
+decomp.week <- stl(weekly.ARIMA, s.window="periodic")
+deseasonal_cnt.week <- seasadj(decomp.week)
+deseasonal_cnt <- seasadj(decomp)
+plot(decomp, main='Trends')
+
+```
+
+The generalized trend serves to further smooth monthly ARIMA. Additionally, some amount of variation in employee requirement remains unexplained by either the general increasing trend or seasonal variation. 
+
+
+## Statistical Testing for Significant Increase in Employee Requirement, Stationarity, and Auto Correlation
+
+
+```{r statistical ttest}
+
+# statistical testing for increase in employment requirement over time, stationarity, and auto correlation
+
+# t-test to determine whether employee requirement increase between the first and second half of 2016 is statistically significant
+
+# using monthly data
+half.1 <- series[1:182,]
+half.2 <- series[183:365,]
+
+# perform t-test
+t.test(half.1$`monthly requirement`, half.2$`monthly requirement`, var.equal=TRUE, paired=FALSE)
+
+```
+
+There is evidence at the 1% level of significance that mean employee requirement was higher over the second half of 2016 than it was during the first half. 
+
+
+```{r sationarity}
+
+# testing whether data display stationarity
+adf.test(monthly.ARIMA, alternative = "stationary", k=12) 
+
+```
+
+We cannot reject non-stationarity. This is to say, we cannot reject that the series does not retain mean, variance, and auto-correlation over time. This is intuitive given the generally increasing pattern observed in the data. We did not expect stationarity in this series. 
+
+```{r viz-6}
+
+# auto correlation testing
+Acf(monthly.ARIMA, main='Auto Correlation')
+
+```
+
+The data retain relatively high auto-correlation over time, which means that observations, even at a significant lag, are still correlated and potentially useful in determining the position for future values of employee requirement. 
+
+
+## Forecasting
+
+We next develop forecasting models to predict future values of employee requirement. We present maximum liklihood and drift models to forecast future employee requirement 30 days into 2017. 
+
+
+The first model visualized below is the max liklihood model. 
+
+```{r viz-7}
+
+# fit max liklihood forecast
+fit.1 <- arima(deseasonal_cnt, order=c(1,1,4), method = "ML")
+fcast.1 <- forecast(fit.1, 30) # fit.1 estimates
+plot(fcast.1, main='Max Liklihood Forecast', ylab='Employee Requirement', xlab='Months Passed')
+fcast.1$model
+
+```
+
+The max liklihood model decreasingly increases over time, with functional form along the lines of k*(1 / sqrt(x)).
+
+The drift model is presented below.
+
+
+```{r viz-8}
+
+# fit drift forecast
+fit.2 <- Arima(deseasonal_cnt, order=c(0, 1, 1), include.drift = TRUE)
+fcast.2 <- forecast(fit.2, 30)
+plot(fcast.2, main='Forcast with Drift', ylab='Employee Requirement', xlab='Months Passed')
+fcast.2$model
+
+```
+
+The drift model follows a linear pattern of increase. Below, we visualize the drift model predictions vs. actuals using the final 25 days of the weekly ARIMA observations. 
+
+
+```{r viz-9}
+
+# test drift forecast vs actuals using weekly ARIMA
+hold <- window(ts(deseasonal_cnt.week), start=340)
+fit_no_holdout <- Arima(ts(deseasonal_cnt.week[-c(340:365)]), order=c(0,1,1), include.drift = TRUE)
+fcast_no_holdout <- forecast(fit_no_holdout, h=25)
+plot(fcast_no_holdout, main="Drift Prediction vs. Weekly ARIMA", xlab='Days Passed', ylab='Employee Requirement')
+lines(ts(deseasonal_cnt.week))
+
+```
+
+The drift model appears to appropriately model at least the last 25 weekly ARIMA observations. 
+
+
+## Regression Analysis
+
+We next perform regression analysis, modeling employee requirement as a function of time, which we will eventaully use to produce forecasts for future employee requirement.
+
+The first model presented below uses the daily logged employee requirement values to fit the regression.
+
+```{r viz-10}
+
+# regression analysis
+
+# add days passed column 
+series$Days <- seq.int(nrow(series))
+setnames(series, old = c("Employee Requirement"), new = c("Employee.Requirement"))
+
+# reg employee requirement on days passed
+lm.fit <- lm(Employee.Requirement~Days, data = series)
+#summary(lm.fit)
+
+# ggplot function to visualize regression
+ggplotRegression <- function (fit) {
+  
+  ggplot(fit$model, aes_string(x = names(fit$model)[2], y = names(fit$model)[1])) + 
+    geom_point() +
+    stat_smooth(method = "lm", col = "red") +
+    labs(title = paste("Adj R2 = ",signif(summary(fit)$adj.r.squared, 5),
+                       "Intercept =",signif(fit$coef[[1]],5 ),
+                       " Slope =",signif(fit$coef[[2]], 5),
+                       " P =",signif(summary(fit)$coef[2,4], 5))) + ylab("Employee Requirement")+xlab("Days Passed")
+}
+
+# plotting regression in ggplot
+ggplotRegression(lm.fit)
+
+```
+
+The second regression below models employee requirement using monthly ARIMA. 
+
+```{r viz-11}
+
+# build regression on monthly moving average
+
+# create monthly data set
+series.monthly <- series[,c("Date","monthly requirement")]
+series.monthly <- na.omit(series.monthly)
+series.monthly$Days <- seq.int(nrow(series.monthly))
+setnames(series.monthly, old = c("monthly requirement"), new = c("ARIMA"))
+
+# biuld bi-variate regression
+lm.fit.2 <- lm(ARIMA~Days, data = series.monthly)
+#summary(lm.fit.2)
+ggplotRegression(lm.fit.2)
+
+# isolate predictions
+lm.fit.2 <- lm(ARIMA~Days, data = series.monthly)
+fit.values <- data.frame(lm.fit.2$fitted.values)
+
+# create new dataframe with actuals and predictions
+reg.data <- cbind(series.monthly, fit.values)
+reg.data$`percent difference` <- (reg.data$lm.fit.2.fitted.values - reg.data$ARIMA) / reg.data$ARIMA
+
+```
+
+We observe that the two linear regression models produce similar equations with respect to calculating employee requirement. 
+
+Regression 1: Employee Requirement = 884 + 1.23(Days), so f(100) = 1,007
+
+Regression 2: Employee Requirement = 898 + 1.18(Days), so f(100) = 1,016
+
+We can set the two equations equal to determine when they would produce identical predictions for employee requirement:
+
+898 + 1.18(Days) = 884 + 1.23(Days)
+
+14 = .05(Days)
+
+280 = Days
+
+So, the two regression equations will return identical predictions with respect to employee requirement approximately 280 days from the beginning of 2016. 
+
+We next include a quadratic term to more closely model the monthly ARIMA. The quadratic model preditions vs. monthly ARIMA is visualized below.
+
+```{r viz-12}
+
+# adding quadratic term
+lm.fit.3 <- lm(ARIMA~poly(Days, 2), data = series.monthly)
+#summary(lm.fit.3)
+fit.poly <- data.frame(lm.fit.3$fitted.values)
+poly.data <- cbind(series.monthly, fit.poly)
+
+# plotting actuals vs predictions
+ggplot(poly.data, aes(Days)) + 
+  geom_point(aes(y = ARIMA, colour = "ARIMA")) + 
+  geom_line(aes(y = fit.poly, colour = "fit.poly")) + ggtitle("Quadratic Predictions vs. Monthly ARIMA") + ylab("Employee Requirement") + xlab("Days Passed")
+
+```
+
+The quadratic model returns fitted values which are significantly closer to the monthly ARIMA values than do either of the linear models. However, the quadratic model predictions will begin to increase rapidly due to the quadratic term, and will eventually return estimates which are unrealistically high with respect to employee requirement. 
+
+Below we predict out employee requirement 400 days, 450 days, and 500 days from the start of 2016 for both linear models and the quadratic model. 
+
+```{r predictions}
+
+# predict future employee requirement values using linear and quadratic models
+
+# using models to predict future Employee Requirement
+new.data <- data.frame(Days = c(400, 450, 500))
+
+# predictions
+predict(lm.fit, newdata = new.data)
+predict(lm.fit.2, newdata = new.data)
+predict(lm.fit.3, newdata = new.data) 
+
+```
+
+As we see, the linear models return quite similar predictions while the quadratic model returns significantly higher estimates for employee requirement as we move through time.
+
+
+## Regularized Gradient Boosting (XGBoost) for Predicting Employee Requirement
+
+We next select a non-parametric algorithm to model and predict employee requirement. We use the forecastxgb package and then build a custom regularized gradient boosted model to determine performance. The results of the forecastxgb model are visualized below. 
+
+```{r viz-13}
+
+# xgboost modeling
+
+# using the forecast xgb package
+
+# XGB Forecasting
+xgb.monthly <- series.monthly[,c("ARIMA", "Days")]
+ARIMA.xgb <- ts(series$Employee.Requirement)
+xgb.fit <- xgbar(ARIMA.xgb)
+xgb.forecast <- forecast(xgb.fit, h = 30)
+plot(xgb.forecast, main = 'XGB Weekly Moving Average Forecast') 
+
+```
+
+While the gradient boosted model picks up on the seasonal fluctuations presented using weekly ARIMA, if we extrapolate out far enough the predictions converge on a single value. This may not be problematic since we would plan on updating our models as new data become available. However, if preditions far into the future are required, the forecastxgb model presents challenges. 
+
+We next train and test a custom built gradient boosted model. As you see, the model almost perfectly follows the monthly ARIMA values. 
+
+```{r viz-14}
+
+# xgb using train and test splits to build custom model
+
+# set seed
+set.seed(101)
+
+# splitting training set into train and test with a 70/30% split
+
+trainIndex <- createDataPartition(xgb.monthly$ARIMA,
+                                  p = .7,
+                                  list = FALSE,
+                                  times = 1)
+
+# setting train and test sets
+xgb.Train <- xgb.monthly[trainIndex,]
+xgb.Test <- xgb.monthly[-trainIndex,]
+
+# training the model
+
+# creating sparse matrix for learning
+sparse_matrix_train <- sparse.model.matrix(ARIMA~.-1, data = xgb.Train)
+
+# getting label (outcome), ERP solution dummy vector
+xgb.Train$outputVector <- xgb.Train$ARIMA
+output_train_vector <- xgb.Train[, "outputVector"]
+
+# building model on training data
+bst <- xgboost(data = sparse_matrix_train, label = output_train_vector, max.depth = 10, eta = 1, nthread = 2, nround = 5, 
+               objective = "reg:linear")
+
+# using model on test set to benchmark accuracy
+
+# saving test label
+test.Label <- xgb.Test$ARIMA
+
+# transforming test to sparse
+sparse_test_matrix <- sparse.model.matrix(ARIMA~.-1, data=xgb.Test)
+
+# getting label (outcome), ERP solution dummy vector from test
+xgb.Test$outputVector <- xgb.Test$ARIMA
+outputTestVector <- xgb.Test[, "outputVector"]
+
+# making prediction on test data
+pred <- predict(bst, sparse_test_matrix)
+
+# set prediction and probabilities as columns 
+prediction <- data.frame(pred)
+
+# add columns to test data
+xgb.test.final <- cbind(xgb.Test, prediction)
+
+# reorder columns
+xgb.test.final <- xgb.test.final[c(2,1,3,4)]
+xgb.test.final$outputVector <- NULL
+
+# add analytical columns
+xgb.test.final$`Squared diff` <- (xgb.test.final$ARIMA - xgb.test.final$pred)^2
+xgb.test.final$`percent error` <- abs((xgb.test.final$pred - xgb.test.final$ARIMA) / xgb.test.final$ARIMA)
+
+# plotting xgb actuals vs predictions
+ggplot(xgb.test.final, aes(Days)) + 
+  geom_point(aes(y = ARIMA, colour = "ARIMA")) + 
+  geom_line(aes(y = pred, colour = "pred")) + ggtitle("XGB Predictions vs. Monthly ARIMA") + ylab("Employee Requirement") + xlab("Days Passed")
+
+# predicting future Employee Requirement
+
+# days into future
+future.requirement <- data.frame(Days = c(351:450))
+
+# sparse matrix conversion
+sparse_matrix_pred <- sparse.model.matrix(~.-1, data=future.requirement)
+
+# making prediction
+pred_new_data <- predict(bst, sparse_matrix_pred)
+new.predictions <- data.frame(pred_new_data)
+
+# grab xgb fitted predictions
+sparse_matrix_full <- sparse.model.matrix(ARIMA~.-1, data = xgb.monthly)
+xgb.pred.full <- predict(bst, sparse_matrix_full)
+xgb.predictions <- data.frame(xgb.pred.full)
+
+# saved preds
+xgb.data.export <- cbind(series.monthly, xgb.predictions)
+
+```
+
+Unfortunately, however, the model is unable to pick up the increasing trend in employee requirement and returns converged predictions for all future dates. Using this model for future employee requirement predictions is not appropriate. 
+
+
+## Step Function 
+
+We next build and visualize a custom step function over three domains of time. The model is visualized below. 
+
+```{r viz-15}
+
+# custom step Function with three domains of time
+
+# create subsets to train best fit regressions
+piece.1 <- series.monthly[1:125,]
+piece.2 <- series.monthly[126:260,]
+piece.3 <- series.monthly[261:335,]
+
+# build piecewise regressions
+regression.1 <- lm(ARIMA~Days, data = piece.1)
+regression.2 <- lm(ARIMA~Days, data = piece.2)
+regression.3 <- lm(ARIMA~Days, data = piece.3)
+
+# capture fitted values
+piece.fit.1 <- data.frame(regression.1$fitted.values)
+piece.fit.2 <- data.frame(regression.2$fitted.values)
+piece.fit.3 <- data.frame(regression.3$fitted.values)
+
+# cbind columns
+PW.1 <- cbind(piece.1, piece.fit.1)
+PW.2 <- cbind(piece.2, piece.fit.2)
+PW.3 <- cbind(piece.3, piece.fit.3)
+
+# set column names
+setnames(PW.1, old = c("regression.1.fitted.values"), new = c("fit"))
+setnames(PW.2, old = c("regression.2.fitted.values"), new = c("fit"))
+setnames(PW.3, old = c("regression.3.fitted.values"), new = c("fit"))
+
+# crease final piece wise function
+piece.wise <- rbind(PW.1, PW.2, PW.3)
+
+
+# plotting actuals vs predictions
+ggplot(piece.wise, aes(Days)) + 
+  geom_point(aes(y = ARIMA, colour = "ARIMA")) + 
+  geom_line(aes(y = fit, colour = "fit")) + ggtitle("Step Function Predictions vs. Monthly ARIMA") + ylab("Employee Requirement") + xlab("Days Passed")
+
+```
+
+The step function is more flexible in its predictions than are the linear models. Also, unlike the gradient boosted model, the step function can be used effectively for predicting future employee requirement. Since the general trend in employee requirement is increasing in nature, we review the predictions of the regression over the middle domain and the final domain of time. We also consider a combination of those two models and use each of those results to create predictions for future employee requirement later on. 
+
+
+## Model Comparison
+
+Below, we compare the model performance of each algorithm. 
+
+```{r viz-16, warning=FALSE, message=FALSE}
+
+# 2016 analysis consolidation
+
+xgb.out <- xgb.data.export[, c("Date", "xgb.pred.full")]
+setnames(xgb.out, old = c("xgb.pred.full"), new = c("xgb fit"))
+step.out <- piece.wise[, c("Date", "fit")]
+setnames(step.out, old = c("fit"), new = c("step fit"))
+poly.out <- poly.data[, c("Date", "lm.fit.3.fitted.values")]
+setnames(poly.out, old = c("lm.fit.3.fitted.values"), new = c("poly fit"))
+reg.out <- reg.data[, c("Date", "lm.fit.2.fitted.values")]
+setnames(reg.out, old = c("lm.fit.2.fitted.values"), new = c("lm fit"))
+month.out <- series.monthly[, c("Date", "ARIMA")]
+
+# cbind data together
+merged <- Reduce(function(x, y) merge(x, y, all=TRUE), list(month.out, reg.out, poly.out, step.out, xgb.out))
+
+# grab cols from weekday data
+week.out <- series[, c("Date", "Time Entry", "Extrapolated Time Entry", "Employee.Requirement", "weekly requirement", "Days")]
+setnames(week.out, old = c("Time Entry", "Extrapolated Time Entry", "Employee.Requirement", "weekly requirement", "Days"),
+         new = c("Time Entered", "Extrapolated Time", "Requirement per Day", "Weekly ARIMA", "Days Passed"))
+
+# merge weekdays and merged
+output <- merge(week.out, merged, by = c("Date"), all.x = TRUE)
+
+# plotting actuals vs predictions
+ggplot(output, aes(`Days Passed`)) + 
+  geom_point(aes(y = ARIMA, colour = "ARIMA")) + 
+  geom_line(aes(y = `lm fit`, colour = "lm fit")) + 
+  geom_line(aes(y = `poly fit`, colour = "poly fit")) + 
+  geom_line(aes(y = `step fit`, colour = "step fit")) + 
+  geom_line(aes(y = `xgb fit`, colour = "xgb fit")) + 
+  ggtitle("Monthly ARIMA Vs Predictions") + ylab("Employee Requirement")
+
+# set date column for tableau
+output$Date <- gsub("-", "/", output$Date)
+output$Date <- sprintf('%s 12:00:00 AM', output$Date)
+
+```
+
+
+## Predicting Future Employee Requirement
+
+Lastly, we use each of the models we built during the course of this report to predict future employee requirement 100 days after the last observed monthly ARIMA value. 
+
+```{r viz-17, warning=FALSE, message=FALSE}
+
+# data processing for predictions dataframe
+
+# creating dates vector
+prediction.dates <- data.frame(Date = c(seq(as.Date("2016-01-01", format="%Y-%m-%d"), as.Date("2017-3-25", format="%Y-%m-%d"),"days")))
+prediction.dates$Date <- as.character(prediction.dates$Date)
+prediction.dates$`Days Passed` <- 1:nrow(prediction.dates)
+
+# data type structuring
+prediction.dates$Date <- as.character(prediction.dates$Date)
+
+# date formatting
+prediction.dates$Date <- gsub("-", "/", prediction.dates$Date)
+prediction.dates$Date <- sprintf('%s 12:00:00 AM', prediction.dates$Date)
+
+#--------------------------------------------------------#
+
+# building predictions data frame
+
+# future predictions
+
+# R forecast predictions
+
+# ML model
+fcast.1 <- forecast(fit.1, 100) 
+fcast.1.preds <- data.frame(fcast.1)
+fcast.1.preds$days <- 1:nrow(fcast.1.preds)
+fcast.1.preds$`Days Passed` <- fcast.1.preds$days + 350
+ML.preds <- fcast.1.preds[, c("Point.Forecast", "days", "Days Passed")]
+setnames(ML.preds, old = c("Point.Forecast", "days"), new = c("Max Liklihood Forecast", "Prediction Days"))
+
+# drift model
+fcast.2 <- forecast(fit.2, 100)
+fcast.2.preds <- data.frame(fcast.2)
+fcast.2.preds$days <- 1:nrow(fcast.2.preds)
+fcast.2.preds$`Days Passed` <- fcast.2.preds$days + 350
+Drift.preds <- fcast.2.preds[, c("Point.Forecast", "Days Passed")]
+setnames(Drift.preds, old = c("Point.Forecast"), new = c("Drift Forecast"))
+
+# merge max liklihood and drift forecasts
+R.Forecasts <- merge(ML.preds, Drift.preds, by = c("Days Passed"))
+
+# order columns
+R.Forecasts <- R.Forecasts[,c(1,3,2,4)]
+
+# vector of days on which to apply algorithms
+prediction.data <- data.frame(Days = c(336:435))
+
+# use models to build predictions 
+
+# lm 1
+lm.1.preds <- data.frame(predict(lm.fit, newdata = prediction.data))
+lm.1.preds$`Prediction Days` <- 1:nrow(lm.1.preds)
+setnames(lm.1.preds, old = c("predict.lm.fit..newdata...prediction.data."), new = c("Linear Model 1 Forecast"))
+
+# lm 2
+lm.2.preds <- data.frame(predict(lm.fit.2, newdata = prediction.data))
+lm.2.preds$`Prediction Days` <- 1:nrow(lm.2.preds)
+setnames(lm.2.preds, old = c("predict.lm.fit.2..newdata...prediction.data."), new = c("Linear Model 2 Forecast"))
+
+# lm 3
+lm.3.preds <- data.frame(predict(lm.fit.3, newdata = prediction.data))
+lm.3.preds$`Prediction Days` <- 1:nrow(lm.3.preds)
+setnames(lm.3.preds, old = c("predict.lm.fit.3..newdata...prediction.data."), new = c("Quadratic Forecast"))
+
+# XGB
+new.predictions$`Prediction Days` <- 1:nrow(new.predictions)
+setnames(new.predictions, old = c("pred_new_data"), new = c("XGB Model"))
+xgb.preds <- new.predictions
+
+# step function reg 1
+step.1.preds <- data.frame(predict(regression.2, newdata = prediction.data))
+step.1.preds$`Prediction Days` <- 1:nrow(step.1.preds)
+setnames(step.1.preds, old = c("predict.regression.2..newdata...prediction.data."), new = c("Step Function 1 Forecast"))
+
+# step function reg 2
+step.2.preds <- data.frame(predict(regression.3, newdata = prediction.data))
+step.2.preds$`Prediction Days` <- 1:nrow(step.2.preds)
+setnames(step.2.preds, old = c("predict.regression.3..newdata...prediction.data."), new = c("Step Function 2 Forecast"))
+
+# merging algorithm predictions
+
+# cbind data together
+merged.preds <- Reduce(function(x, y) merge(x, y, all=TRUE), list(lm.1.preds, lm.2.preds, lm.3.preds, xgb.preds, step.1.preds, step.2.preds))
+merged.preds$`Averaged Step Forecast` <- (merged.preds$`Step Function 1 Forecast` + merged.preds$`Step Function 2 Forecast`) / 2
+
+#--------------------------------------------------------#
+
+# merging all forecasts
+full.predictions <- merge(R.Forecasts, merged.preds, by = c("Prediction Days"))
+
+# merging full cycle of predictions
+merged.predictions <- merge(prediction.dates, full.predictions, by = c("Days Passed"), all.x = TRUE)
+final.predictions <- merge(prediction.dates, full.predictions, by = c("Days Passed"))
+final.predictions$`Short Date` <- gsub("12:00:00 AM", "", final.predictions$Date)
+final.predictions$`Short Date` <- gsub("/", "-", final.predictions$`Short Date`)
+final.predictions$`Short Date` <- as.Date(final.predictions$`Short Date`)
+
+# graphing predictions
+ggplot(final.predictions, aes(`Short Date`)) + 
+  geom_line(aes(y = `Max Liklihood Forecast`, colour = "Max Liklihood Forecast")) + 
+  geom_line(aes(y = `Drift Forecast`, colour = "Drift Forecast")) + 
+  geom_line(aes(y = `Linear Model 1 Forecast`, colour = "Linear Model 1 Forecast")) + 
+  geom_line(aes(y = `Linear Model 2 Forecast`, colour = "Linear Model 2 Forecast")) + 
+  geom_line(aes(y = `Quadratic Forecast`, colour = "Quadratic Forecast")) + 
+  geom_line(aes(y = `XGB Model`, colour = "XGB Model")) + 
+  geom_line(aes(y = `Step Function 1 Forecast`, colour = "Step Function 1 Forecast")) + 
+  geom_line(aes(y = `Step Function 2 Forecast`, colour = "Step Function 2 Forecast")) + 
+  geom_line(aes(y = `Averaged Step Forecast`, colour = "Averaged Step Forecast")) + 
+  ggtitle("Employee Requirement Predictions") + ylab("Employee Requirement") + xlab("2017 Date")
+
+```
+
+
+The predictions range from a low of about 1400 to a high of about 1620. When data for the 100 day period of predictions becomes available, we will calculate monthly ARIMA values and compare each model's predictions to the actual observed monthly ARIMA values. We will then select the best performing algorithms to include in custom function models which will return accurate forecasts for employee requirement, giving firms an unparalleled level of business intelligence. 
+
+
+## Response to Possible Concners
+
+
+One concern is that employee requirement can be modeled as a function of staffing count. When more staff come on board, employee requirement increases because the new staff are logging time, which we in turn use to calculate employee requirement This could lead to a situation in which employee requirement vs staffing count shortfall / surplus never significantly decreases. 
+
+* This is unlikely the case. Workload is in flux, but theoreticall there is some amount of total workload that firms are responsible for completing. If firms were to hire exactly enough staff to complete their workload duing their available hours, hiring additional staff would not then increase workload, and additional hires would instead serve to redistribute and reduce the amount of work per employee. 
+
+The second concern is that we cannot be sure how accurate our predictions for future employee requirement will prove to be. We have strong evidence that we have observed an increase in employee requirement over time. However, it may be argued we are speculating that the trend will continue indefinitely. 
+
+* We are prepared to actively test the validity of our predictive models. We will do this by comparing our predictions to actual observations. We have visualized our next 100 predictions and will test their respective performance when validation data become available. When we observe that employee requirement no longer increases, or increases at different rates than at present, we will simply adjust our models accordingly. The advantage to using machine learning techniques is that the algorithms learn patterns through time with additional data. This is exactly why we call them 'learning algorithms.'
+
+A final concern may arise over the act of considering emlpoyee requirement to be a function of time. The processes and drivers that lead to employee requirement are impossibly complex, and at first glance it may seem we are excluding many of the variables that are relevant to this analysis. 
+
+* In fact, drawing on the principles of dynamical systems, time acts as a catch all for every observed and unobserved variable that collectively drive employee requirement. Considering employee requirement to be a function of time drastically reduces the complexity of what would otherwise be a nearly infinitely complex model. Even though we cannot hope to identify each driver of employee requirement, the effects of each are nonetheless captured by the passage of time, and are therefore included in the model.
+
+
+
+                                                     End of Report
