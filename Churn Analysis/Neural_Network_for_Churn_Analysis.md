@@ -179,3 +179,4 @@ The last step is to visualize the neural network model used to predict churn.
 # visualize neural network 
 plot(nn, arrow.length = .165, dimension = 20, show.weights = TRUE, fontsize = 6)
 ```
+![](Graphics/NN.Plot.png?raw=true)
