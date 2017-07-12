@@ -46,7 +46,7 @@ churn.graph <- churn.graph + ylab("Number of Customers") + xlab("Customer Churn"
 churn.graph
 ```
 
-![](XGboost_for_Churn_Analysis_files/figure-markdown_github/viz-graph1-1.png)
+![](Graphics/viz-graph1-1.png?raw=true)
 
 As we see, the majority of customers retain the telecom service. The challenge is to identify those customers who will drop the service.
 
