@@ -201,7 +201,7 @@ accuracy.graph <- accuracy.graph + ylab("Predictive Accuracy") + xlab("Customer 
 accuracy.graph
 ```
 
-![](XGboost_for_Churn_Analysis_files/figure-markdown_github/viz-graph2-1.png)
+![](Graphics/viz-graph2-1.png?raw=true)
 
 As we expect, the model was more accurate with respect to predicting which customers would retain service than it was at predicting which customers would drop the service.
 
@@ -233,7 +233,7 @@ head(importance_matrix)
 xgb.ggplot.importance(importance_matrix = importance_matrix)
 ```
 
-![](XGboost_for_Churn_Analysis_files/figure-markdown_github/viz-graph3-1.png)
+![](Graphics/viz-graph3-1.png?raw=true)
 
 In this case, we observe that total day minutes is clearly the most impactful input variable with respect to predicting customer churn.
 
